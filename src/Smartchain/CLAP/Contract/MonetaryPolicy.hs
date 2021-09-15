@@ -18,15 +18,23 @@
 {-# LANGUAGE NumericUnderscores #-}
 {-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
 
-module Smartchain.Contract.CLAP.MonetaryPolicy(
+module Smartchain.CLAP.Contract.MonetaryPolicy(
     MonetaryPolicySchema
     , CLAPMonetaryPolicyError(..)
     , AsCLAPMonetaryPolicyError(..)
+    , mkCLAPMonetaryPolicyScript
+    , plutusScriptV1
     , mintCLAPContract
     , burnCLAPContract
-    , mkCLAPMonetaryPolicyScript
+    , clapCurrencySymbol
     , clapTotalSupply
     ) where
+
+import qualified Data.ByteString.Lazy as LB
+import qualified Data.ByteString.Short as SBS
+import           Codec.Serialise ( serialise )
+import qualified Cardano.Api as Script
+import qualified Cardano.Api.Shelley  as Script
 
 import Control.Lens ( makeClassyPrisms, review )
 import PlutusTx.Prelude
@@ -61,6 +69,7 @@ import Ledger
       txId,
       pubKeyHashAddress,
       mkMintingPolicyScript,
+      unMintingPolicyScript,
       PubKeyHash,
       MintingPolicy,
       AssetClass,
@@ -184,6 +193,8 @@ mintCLAPContract pk =
      >>  pure (clapPolicyHash,txOutRef)
 
 
+clapCurrencySymbol :: TxOutRef -> CurrencySymbol
+clapCurrencySymbol = scriptCurrencySymbol . mkCLAPMonetaryPolicyScript
 
 clapInstance
     :: (TxOutRef -> TxOutRef)
@@ -195,3 +206,12 @@ clapInstance a b c = do
     y <- b
     z <- c
     Haskell.return (x,y,z)
+
+plutusScriptV1 :: TxOutRef -> Script.PlutusScript Script.PlutusScriptV1
+plutusScriptV1 
+  = Script.PlutusScriptSerialised 
+  . SBS.toShort 
+  . LB.toStrict 
+  . serialise 
+  . unMintingPolicyScript 
+  . mkCLAPMonetaryPolicyScript 

@@ -12,7 +12,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 {-# LANGUAGE EmptyCase #-}
-module Smartchain.Contract.CLAP.MonetaryPolicy.Trace  where
+module Smartchain.CLAP.Tokenomic.Simulation  where
 
 import Control.Monad (void)                   
 import           Control.Monad.Freer.Error         (throwError)
@@ -30,12 +30,12 @@ import Plutus.Contract
 
 import           Plutus.Trace.Emulator             (EmulatorRuntimeError (GenericError), EmulatorTrace,runEmulatorTraceIO)
 import qualified Plutus.Trace.Emulator             as Emulator
-import           Wallet.Emulator
+import Wallet.Emulator ( knownWallet, walletPubKey, Wallet )
 import Data.Time ()
 import Data.Time.Clock.POSIX ()
 import Ledger.TimeSlot ()
 import Data.Text ( Text )
-import Plutus.Trace.Effects.EmulatedWalletAPI ()
+import Plutus.Trace.Effects.EmulatedWalletAPI () 
 
 import Control.Monad.Freer.Reader ( ask, Reader,runReader )
 import Control.Monad.Freer ( Eff, Members )
@@ -44,7 +44,7 @@ import qualified Plutus.Trace.Effects.Waiting as EffectsW
 import qualified Ledger.TimeSlot          as TimeSlot  
 import           Data.Default             (Default (def))
 import           Data.Semigroup         (Last (..))     
-import Smartchain.Contract.CLAP.MonetaryPolicy
+import Smartchain.CLAP.Contract.MonetaryPolicy
     ( mintCLAPContract, CLAPMonetaryPolicyError )
 
 import Smartchain.Contract.Vesting as Vesting

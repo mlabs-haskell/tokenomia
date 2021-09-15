@@ -39,9 +39,12 @@ common lang
 library
     import: lang
     exposed-modules:
-      Smartchain.Contract.CLAP.MonetaryPolicy.Trace
-      Smartchain.Contract.CLAP.MonetaryPolicy.ScriptFileGenerator
-      Smartchain.Contract.CLAP.MonetaryPolicy
+      Smartchain.CLAP.Tokenomic.Simulation
+      Smartchain.Adapter.Cardano.CardanoCLI
+      Smartchain.InteractiveShell
+      Smartchain.CLAP.Contract.MonetaryPolicy
+      Smartchain.CLAP.Script.Mint
+      Smartchain.CLAP.Script.Transfer
       Smartchain.Contract.Vesting
     build-depends:
       base >= 4.9 && < 5,
@@ -49,6 +52,10 @@ library
       aeson,
       text,
       time,
+      shh,
+      byline,
+      split,
+      utf8-string,
       freer-simple,
       data-default,
       unordered-containers,
@@ -72,7 +79,7 @@ test-suite smartchain-tests
   main-is: Spec.hs
   hs-source-dirs: test
   other-modules:
-    Spec.Smartchain.Contract.CLAP.MonetaryPolicy
+    Spec.Smartchain.CLAP.Contract.MonetaryPolicy
     Spec.Smartchain.Contract.Vesting
   build-depends:
     plutus-tx -any,
@@ -98,9 +105,11 @@ executable clap-cli
   build-depends:
     base >= 4.9 && < 5,
     shh,
+    byline,
     bytestring,
     data-default -any,
     aeson -any,
     freer-simple -any,
     prettyprinter -any,
     freer-extras -any,
+    plutus-starter

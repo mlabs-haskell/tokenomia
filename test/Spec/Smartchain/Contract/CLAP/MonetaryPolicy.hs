@@ -27,7 +27,7 @@ import           Control.Monad.Freer.Error         (throwError)
 
 -- State Machine for Mint and Burn
 -- Burning CLAPs is open to anyone owning CLAPs
--- The script size is reasonable and is X 
+-- The script size is reasonable and is X  
 -- Script hash is XXXXXX in mainnet
 
 tests :: TestTree
