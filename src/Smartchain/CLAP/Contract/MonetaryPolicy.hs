@@ -11,6 +11,7 @@
 {-# LANGUAGE TypeOperators      #-}
 {-# LANGUAGE ViewPatterns       #-}
 
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes         #-}
 {-# LANGUAGE DeriveGeneric      #-}
@@ -22,19 +23,12 @@ module Smartchain.CLAP.Contract.MonetaryPolicy(
     MonetaryPolicySchema
     , CLAPMonetaryPolicyError(..)
     , AsCLAPMonetaryPolicyError(..)
-    , mkCLAPMonetaryPolicyScript
-    , plutusScriptV1
-    , mintCLAPContract
-    , burnCLAPContract
-    , clapCurrencySymbol
-    , clapTotalSupply
+    , Params (..)
+    , mkMonetaryPolicyScript
+    , mintContract
+    , burnContract
     ) where
 
-import qualified Data.ByteString.Lazy as LB
-import qualified Data.ByteString.Short as SBS
-import           Codec.Serialise ( serialise )
-import qualified Cardano.Api as Script
-import qualified Cardano.Api.Shelley  as Script
 
 import Control.Lens ( makeClassyPrisms, review )
 import PlutusTx.Prelude
@@ -47,7 +41,6 @@ import PlutusTx.Prelude
       Applicative(pure),
       (&&),
       (||),
-      (<$>),
       ($),
       traceIfFalse )
 
@@ -69,7 +62,6 @@ import Ledger
       txId,
       pubKeyHashAddress,
       mkMintingPolicyScript,
-      unMintingPolicyScript,
       PubKeyHash,
       MintingPolicy,
       AssetClass,
@@ -80,14 +72,25 @@ import qualified Ledger.Contexts        as V
 import PlutusTx ( BuiltinData, applyCode, liftCode, compile )
 
 import qualified Ledger.Typed.Scripts   as Scripts
-import           Ledger.Value           (TokenName (..),assetClass,assetClassValue, valueOf)
+import           Ledger.Value           (singleton,TokenName (..),assetClass,assetClassValue, valueOf)
 
 import           Data.Aeson             (FromJSON, ToJSON)
 import           GHC.Generics           (Generic)
 import           Prelude                (Semigroup (..),Integer)
 import qualified Prelude                as Haskell
-
+import qualified PlutusTx
 import PlutusTx.Builtins.Internal ()
+
+
+
+data Params = Params
+  { txOutRef     :: TxOutRef
+  , amount    :: Integer
+  , tokenName :: TokenName }
+  deriving stock (Generic, Haskell.Show, Haskell.Eq)
+  deriving anyclass (ToJSON, FromJSON)
+
+PlutusTx.makeLift ''Params
 
 {-# INLINABLE clapAssetClass #-}
 clapAssetClass :: CurrencySymbol  -> AssetClass
@@ -105,28 +108,28 @@ clapTotalSupply clapPolicyHash
 -- /////////////////
 
 
-mkCLAPMonetaryPolicyScript :: TxOutRef -> MintingPolicy
-mkCLAPMonetaryPolicyScript txOutRef = mkMintingPolicyScript $
+mkMonetaryPolicyScript :: Params -> MintingPolicy
+mkMonetaryPolicyScript param = mkMintingPolicyScript $
     $$(PlutusTx.compile [|| \c -> Scripts.wrapMintingPolicy (monetaryPolicy c) ||])
         `PlutusTx.applyCode`
-            PlutusTx.liftCode txOutRef
-    where
-        {-# INLINABLE monetaryPolicy #-}
-        monetaryPolicy :: TxOutRef -> BuiltinData -> V.ScriptContext -> Bool
-        monetaryPolicy a b c =  burningPolicy a b c || mintingPolicy a b c
+            PlutusTx.liftCode param
+    
+{-# INLINABLE monetaryPolicy #-}
+monetaryPolicy :: Params -> BuiltinData -> V.ScriptContext -> Bool
+monetaryPolicy a b c =  burningPolicy a b c || mintingPolicy a b c
 
-        {-# INLINABLE mintingPolicy #-}
-        mintingPolicy :: TxOutRef -> BuiltinData -> V.ScriptContext -> Bool
-        mintingPolicy (TxOutRef refHash refIdx) _ ctx@V.ScriptContext{V.scriptContextTxInfo=txinfo}
-            =  traceIfFalse "E1" {- Value minted different from expected (10^9 CLAPs)" -}
-                (clapTotalSupply (V.ownCurrencySymbol ctx) == V.txInfoMint txinfo)
-            && traceIfFalse "E2" {- Pending transaction does not spend the designated transaction output (necessary for one-time minting Policy) -}
-                (V.spendsOutput txinfo refHash refIdx)
+{-# INLINABLE mintingPolicy #-}
+mintingPolicy :: Params -> BuiltinData -> V.ScriptContext -> Bool
+mintingPolicy Params{ txOutRef = (TxOutRef refHash refIdx),..} _ ctx@V.ScriptContext{V.scriptContextTxInfo=txinfo}
+    =  traceIfFalse "E1" {- Value minted different from expected (10^9 CLAPs)" -}
+        (singleton (V.ownCurrencySymbol ctx) tokenName  amount == V.txInfoMint txinfo)
+    && traceIfFalse "E2" {- Pending transaction does not spend the designated transaction output (necessary for one-time minting Policy) -}
+        (V.spendsOutput txinfo refHash refIdx)
 
-        {-# INLINABLE burningPolicy #-}
-        burningPolicy :: TxOutRef -> BuiltinData -> V.ScriptContext -> Bool
-        burningPolicy _ _ context@V.ScriptContext{V.scriptContextTxInfo=txinfo}
-            = valueOf (V.txInfoMint txinfo) (V.ownCurrencySymbol context) (TokenName "CLAP") < 0
+{-# INLINABLE burningPolicy #-}
+burningPolicy :: Params -> BuiltinData -> V.ScriptContext -> Bool
+burningPolicy Params {tokenName} _ context@V.ScriptContext{V.scriptContextTxInfo=txinfo}
+    = valueOf (V.txInfoMint txinfo) (V.ownCurrencySymbol context) tokenName < 0
 
 
 
@@ -136,8 +139,8 @@ mkCLAPMonetaryPolicyScript txOutRef = mkMintingPolicyScript $
 
 type Amount = Integer
 type MonetaryPolicySchema
-    = Endpoint   "Mint CLAPs" ()
-    .\/ Endpoint "Burn CLAPs" (CurrencySymbol,Amount)
+    = Endpoint   "Mint" ()
+    .\/ Endpoint "Burn" (CurrencySymbol,Amount)
 
 newtype CLAPMonetaryPolicyError =
     CLAPMonetaryPolicyError ContractError
@@ -150,68 +153,50 @@ instance AsContractError CLAPMonetaryPolicyError where
     _ContractError = _CLAPMonetaryPolicyError
 
 
-burnCLAPContract
+burnContract
     :: forall w s e.
     ( AsCLAPMonetaryPolicyError e
     )
     => PubKeyHash
     -> TxOutRef
+    -> TokenName
     -> Integer
     -> Contract w s e ()
-burnCLAPContract burnerPK txOutRef amount =
+burnContract burnerPK txOutRef tokenName amount =
     mapError (review _CLAPMonetaryPolicyError) $ do
-    let clapPolicyHash = (scriptCurrencySymbol . mkCLAPMonetaryPolicyScript) txOutRef
-        clapMonetaryPolicyScript = mkCLAPMonetaryPolicyScript txOutRef
+    let monetaryPolicyParams = Params {..}
+        policyHash = (scriptCurrencySymbol . mkMonetaryPolicyScript) monetaryPolicyParams
+        monetaryPolicyScript = mkMonetaryPolicyScript monetaryPolicyParams
     utxosInBurnerWallet <- Contract.utxosAt (pubKeyHashAddress burnerPK)
     submitTxConstraintsWith
             @Scripts.Any
-            (Constraints.mintingPolicy clapMonetaryPolicyScript <> Constraints.unspentOutputs utxosInBurnerWallet)
-            (Constraints.mustMintValue $ assetClassValue (clapAssetClass clapPolicyHash) amount)
+            (Constraints.mintingPolicy monetaryPolicyScript <> Constraints.unspentOutputs utxosInBurnerWallet)
+            (Constraints.mustMintValue $ assetClassValue (clapAssetClass policyHash) amount)
      >>= awaitTxConfirmed . txId
 
 
 
-mintCLAPContract
+mintContract
     :: forall w s e.
     ( AsCLAPMonetaryPolicyError e
     )
     => PubKeyHash
+    -> TokenName
+    -> Integer
     -> Contract w s e (CurrencySymbol,Ledger.TxOutRef)
-mintCLAPContract pk =
+mintContract pk tokenName amount =
     mapError (review _CLAPMonetaryPolicyError) $ do
-    (txOutRef,clapMonetaryPolicyScript , clapPolicyHash )
-        <- clapInstance
-            Haskell.id
-            mkCLAPMonetaryPolicyScript
-            (scriptCurrencySymbol . mkCLAPMonetaryPolicyScript) <$> getUnspentOutput
+    txOutRef <- getUnspentOutput    
+    let monetaryPolicyParams = Params {..}
+        policyHash = (scriptCurrencySymbol . mkMonetaryPolicyScript) monetaryPolicyParams
+        monetaryPolicyScript = mkMonetaryPolicyScript monetaryPolicyParams
+        valueToMint = singleton policyHash tokenName amount
     utxosInWallet <- utxosAt (pubKeyHashAddress pk)
     submitTxConstraintsWith
             @Scripts.Any
-            (Constraints.mintingPolicy clapMonetaryPolicyScript <> Constraints.unspentOutputs utxosInWallet)
-            (Constraints.mustSpendPubKeyOutput txOutRef         <> Constraints.mustMintValue (clapTotalSupply clapPolicyHash))
+            (Constraints.mintingPolicy monetaryPolicyScript <> Constraints.unspentOutputs utxosInWallet)
+            (Constraints.mustSpendPubKeyOutput txOutRef     <> Constraints.mustMintValue valueToMint)
      >>= awaitTxConfirmed . txId
-     >>  pure (clapPolicyHash,txOutRef)
+     >>  pure (policyHash,txOutRef)
 
 
-clapCurrencySymbol :: TxOutRef -> CurrencySymbol
-clapCurrencySymbol = scriptCurrencySymbol . mkCLAPMonetaryPolicyScript
-
-clapInstance
-    :: (TxOutRef -> TxOutRef)
-    -> (TxOutRef -> MintingPolicy )
-    -> (TxOutRef -> CurrencySymbol)
-    -> (TxOutRef -> (TxOutRef,MintingPolicy,CurrencySymbol))
-clapInstance a b c = do
-    x <- a
-    y <- b
-    z <- c
-    Haskell.return (x,y,z)
-
-plutusScriptV1 :: TxOutRef -> Script.PlutusScript Script.PlutusScriptV1
-plutusScriptV1 
-  = Script.PlutusScriptSerialised 
-  . SBS.toShort 
-  . LB.toStrict 
-  . serialise 
-  . unMintingPolicyScript 
-  . mkCLAPMonetaryPolicyScript 

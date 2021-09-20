@@ -31,7 +31,7 @@ import Data.Maybe ( fromJust )
 import Byline.Internal.Stylized ()
 import Smartchain.Wallet.Script (selectWallet) 
 
-load SearchPath ["echo","ssh","cat"]
+load SearchPath ["echo","ssh","cat","curl"]
 
 main :: IO ()
 main = do
@@ -67,8 +67,15 @@ addWallet = do
 receiveByFaucet :: IO ()
 receiveByFaucet = do 
   echo "-----------------------------------"
-  echo "Visit this website for asking ADAs :"
-  echo "https://testnets.cardano.org/en/testnets/cardano/tools/faucet/"
+  echo "Select the Wallet for receiving Money :"
+    >>  selectWallet 
+    >>= \case 
+        Nothing -> 
+          echo "No Wallet Registered !"
+        Just Wallet {..} -> 
+          curl "-v" "-XPOST" 
+            ("https://faucet.alonzo-purple.dev.cardano.org/send-money/" <> paymentAddress <>"?apiKey=jv3NBtZeaL0lZUxgqq8slTttX3BzViI7")  
+  
   echo "-----------------------------------"
 
 listWallet :: IO ()
@@ -121,10 +128,10 @@ data Action
 
 instance ToStylizedText Action where
   toStylizedText item = case item of
-    WalletList   -> "[Wallet] - Show ones registered"
+    WalletList   -> "[Wallet] - List Registered Ones" 
     WalletAdd    -> "[Wallet] - Add "
     WalletRemove -> "[Wallet] - Remove (TODO)"
-    TokenMint    -> "[Token]  - Mint"
+    TokenMint    -> "[Token]  - Mint (Fix Total Supply | one-time Minting and open Burning Policy )"
     TokenBurn    -> "[Token]  - Burn (TODO)"
     Transfer     -> "Transfer "
-    ReceiveByFaucet -> "Ask ADAs from Faucet (Testnet)"
+    ReceiveByFaucet -> "Ask ADAs from Faucet (Testnet Only)"

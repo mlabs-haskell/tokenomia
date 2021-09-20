@@ -45,7 +45,7 @@ import qualified Ledger.TimeSlot          as TimeSlot
 import           Data.Default             (Default (def))
 import           Data.Semigroup         (Last (..))     
 import Smartchain.CLAP.Contract.MonetaryPolicy
-    ( mintCLAPContract, CLAPMonetaryPolicyError )
+    ( mintContract, CLAPMonetaryPolicyError )
 
 import Smartchain.Contract.Vesting as Vesting
     ( vestingContract,
@@ -67,7 +67,7 @@ main = do
 
 
         -- Minting CLAPs    
-        policyHash <- mintTokenS minterWallet
+        policyHash <- mintTokenS minterWallet clapTokenName clapSupplyAmount
         -- Distributing CLAPs to Wallets
         runReader (policyHash,clapTokenName)
             . runReader minterWallet
@@ -227,9 +227,9 @@ retrieveBudgetS
         void $ Emulator.waitNSlots 5
 
 
-mintTokenS :: Wallet -> EmulatorTrace CurrencySymbol
-mintTokenS tokenCreator =  do
-    mintByOwnerHandle <- Emulator.activateContract tokenCreator (mintCLAPContract' tokenCreator) "Minting Claps" 
+mintTokenS :: Wallet -> TokenName -> TokenSupplyAmount ->  EmulatorTrace CurrencySymbol
+mintTokenS tokenCreator tokenName tokenSupplyAmount =  do
+    mintByOwnerHandle <- Emulator.activateContract tokenCreator (mintCLAPContract' tokenCreator tokenName tokenSupplyAmount) "Minting Claps" 
     _ <- Emulator.waitNSlots 2
     r <- Emulator.observableState mintByOwnerHandle >>= \case
                 Just (Semigroup.Last monetaryPolicyId) -> pure monetaryPolicyId
@@ -237,9 +237,9 @@ mintTokenS tokenCreator =  do
     _ <- Emulator.waitNSlots 2
     pure r            
 
-mintCLAPContract' :: Wallet -> Contract (Maybe (Semigroup.Last CurrencySymbol)) EmptySchema CLAPMonetaryPolicyError CurrencySymbol
-mintCLAPContract' w = do 
-    result <- fst <$> mintCLAPContract (Ledger.pubKeyHash $ walletPubKey w)
+mintCLAPContract' :: Wallet -> TokenName -> TokenSupplyAmount -> Contract (Maybe (Semigroup.Last CurrencySymbol)) EmptySchema CLAPMonetaryPolicyError CurrencySymbol
+mintCLAPContract' w tokenName tokenSupplyAmount = do 
+    result <- fst <$> mintContract (Ledger.pubKeyHash $ walletPubKey w) tokenName tokenSupplyAmount
     (tell . Just . Last) result
     pure result
 
