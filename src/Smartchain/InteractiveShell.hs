@@ -4,17 +4,18 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 {-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 module Smartchain.InteractiveShell (main) where
 
-import Shh ( load, ExecReference(SearchPath) )
+import Shh 
 import Data.Function ((&))
 import  qualified Smartchain.CLAP.Script.Mint as Mint
 import  qualified Smartchain.CLAP.Script.Transfer as Transfer
-import qualified Smartchain.Adapter.Cardano.CardanoCLI as CardanoCLI
+import Smartchain.Adapter.Cardano.CardanoCLI as CardanoCLI
 import Data.List.NonEmpty as NonEmpty ( NonEmpty, fromList )
 import Byline.Menu
     ( runBylineT,
@@ -28,6 +29,7 @@ import Byline.Menu
 import Data.Text ( Text )
 import Data.Maybe ( fromJust )
 import Byline.Internal.Stylized ()
+import Smartchain.Wallet.Script (selectWallet) 
 
 load SearchPath ["echo","ssh","cat"]
 
@@ -38,24 +40,49 @@ main = do
     echo "----------------------"
     showActionMenu >>=
      \case
-        ListWallet   -> do
-          echo "-----------------------------------"
-          wallets <-  CardanoCLI.query_registered_wallets
-          mapM_ (echo . show ) wallets
-          echo "-----------------------------------"
-          main
-        NewWallet  -> do
-          echo "-----------------------------------"
-          walletName <- echo "-n" "> Wallet Name : " >>  getLine
-          CardanoCLI.register_shelley_wallet walletName
-          echo "Wallet Created and Registered!"
-          echo "-----------------------------------"
-          main
-        Mint   -> Mint.runWithUserInteraction >> main
-        Transfer  -> Transfer.run  >> main
-        Burn  ->  main
+        WalletList -> listWallet 
+        WalletAdd  -> addWallet
+        WalletRemove  -> echo "TODO"
+        TokenMint  -> 
+          echo "Select the Minter Wallet :"
+          >>  selectWallet 
+          >>= \case 
+              Nothing -> 
+                echo "No Wallet Registered !"
+              Just wallet -> Mint.mintI wallet 
+        TokenBurn  ->  echo "TODO"
+        Transfer   -> Transfer.run 
+        ReceiveByFaucet -> receiveByFaucet  
+    main
 
 
+addWallet :: IO ()
+addWallet = do
+  echo "-----------------------------------"
+  walletName <- echo "-n" "> Wallet Name : " >>  getLine
+  CardanoCLI.register_shelley_wallet walletName
+  echo "Wallet Created and Registered!"
+  echo "-----------------------------------"
+
+receiveByFaucet :: IO ()
+receiveByFaucet = do 
+  echo "-----------------------------------"
+  echo "Visit this website for asking ADAs :"
+  echo "https://testnets.cardano.org/en/testnets/cardano/tools/faucet/"
+  echo "-----------------------------------"
+
+listWallet :: IO ()
+listWallet = do
+  CardanoCLI.query_registered_wallets
+   >>= \case 
+         Nothing -> echo "No Wallet Registered!"
+         Just wallets ->  mapM_ (\Wallet{..} ->  
+            echo "######################"
+              <> echo ("Name : " <> name)
+              <> echo ("Payment Address : " <> paymentAddress)
+              <> query_utxo paymentAddress) wallets
+  echo "######################"
+  
 
 
 showActionMenu :: IO Action
@@ -72,25 +99,32 @@ onError = text "> please choose an action (provide the index) : "
 
 actions :: NonEmpty Action
 actions = NonEmpty.fromList [
-    ListWallet,
-    NewWallet,
-    Mint,
-    Burn
+    WalletList,
+    WalletAdd,
+    WalletRemove,
+    TokenMint,
+    TokenBurn,
+    Transfer,
+    ReceiveByFaucet
     ]
 
 data Action
-  = ListWallet
-  | NewWallet
+  = WalletList
+  | WalletAdd
+  | WalletRemove
+  | TokenMint
+  | TokenBurn
   | Transfer
-  | Mint
-  | Burn
+  | ReceiveByFaucet
   deriving (Show)
 
 
 instance ToStylizedText Action where
   toStylizedText item = case item of
-    ListWallet -> "Show Wallet Registered"
-    NewWallet  -> "Create and Register a new Shelley Wallet"
-    Transfer   -> "Transfer Crypto"
-    Mint       -> "Mint a Native Token"
-    Burn       -> "Burn a Native Token"
+    WalletList   -> "[Wallet] - Show ones registered"
+    WalletAdd    -> "[Wallet] - Add "
+    WalletRemove -> "[Wallet] - Remove (TODO)"
+    TokenMint    -> "[Token]  - Mint"
+    TokenBurn    -> "[Token]  - Burn (TODO)"
+    Transfer     -> "Transfer "
+    ReceiveByFaucet -> "Ask ADAs from Faucet (Testnet)"

@@ -22,7 +22,7 @@ module Smartchain.Adapter.Cardano.CardanoCLI
     , query_registered_wallets  
     , query_utxo
     , query_tip
-    , Wallet
+    , Wallet (..)
     , WalletAddress) where
 
 import Shh.Internal
@@ -37,14 +37,13 @@ import System.Environment (getEnv)
 import qualified Data.ByteString.Lazy.Char8 as C
 import Ledger.Contexts ( scriptCurrencySymbol )
 import Cardano.Api ( writeFileTextEnvelope, Error(displayError) )
-import Data.Function
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.ByteString.Short as SBS
 import           Codec.Serialise ( serialise )
 import qualified Cardano.Api as Script
 import qualified Cardano.Api.Shelley  as Script
 import Ledger ( unMintingPolicyScript, MintingPolicy )
-import Control.Monad
+import Data.List.NonEmpty hiding (head)
 {-# ANN module "HLINT: ignore Use camelCase" #-}
 
 load SearchPath ["cat","echo","mkdir","md5sum","mv","cardano-cli","awk","ls" ]
@@ -54,21 +53,29 @@ type WalletAddress = String
 type WalletName = String
 type PaymentAddress = String
 
-data Wallet = Wallet {name :: WalletName, address :: PaymentAddress } 
+data Wallet = Wallet 
+              { name :: WalletName
+              , paymentAddress :: PaymentAddress
+              , paymentSigningKeyPath :: FilePath } 
 
 instance Show Wallet where 
-    show Wallet {..} = ">> " <> name <> " :" <> address 
+    show Wallet {..} = ">> " <> name <> " :" <> paymentAddress 
 
 
 
-query_registered_wallets :: IO [Wallet]
+query_registered_wallets :: IO (Maybe (NonEmpty Wallet))
 query_registered_wallets = do 
    keyPath <- getFolderPath Keys
    walletNames <- (fmap.fmap) C.unpack (ls keyPath |> captureWords)
    mapM (\name -> 
         do 
-        address <- C.unpack  <$> (cat (keyPath <> name <> "/payment.addr") |> capture ) 
+        let paymentAddressPath = keyPath <> name <> "/payment.addr"  
+            paymentSigningKeyPath = keyPath <> name <> "/payment-signing.skey"  
+        paymentAddress <- C.unpack  <$> (cat paymentAddressPath |> capture ) 
         return $ Wallet {..} ) walletNames
+    >>= \case 
+            [] -> return Nothing 
+            a  -> (return . Just . fromList) a    
    
    
 

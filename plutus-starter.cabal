@@ -45,6 +45,7 @@ library
       Smartchain.CLAP.Contract.MonetaryPolicy
       Smartchain.CLAP.Script.Mint
       Smartchain.CLAP.Script.Transfer
+      Smartchain.Wallet.Script
       Smartchain.Contract.Vesting
     build-depends:
       base >= 4.9 && < 5,
