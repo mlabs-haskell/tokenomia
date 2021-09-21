@@ -11,11 +11,11 @@
 {-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Smartchain.Wallet.Script (selectWallet) where
+module Tokenomia.Wallet.CLI (selectWallet) where
 
 import Shh 
 import Data.Function ((&))
-import Smartchain.Adapter.Cardano.CardanoCLI as CardanoCLI
+import Tokenomia.Adapter.Cardano.CardanoCLI as CardanoCLI
 import Data.List.NonEmpty as NonEmpty ( NonEmpty )
 import Byline.Menu
     ( runBylineT,

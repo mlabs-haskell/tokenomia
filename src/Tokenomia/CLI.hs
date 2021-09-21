@@ -9,13 +9,13 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 {-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
-module Smartchain.InteractiveShell (main) where
+module Tokenomia.CLI (main) where
 
 import Shh 
 import Data.Function ((&))
-import  qualified Smartchain.CLAP.Script.Mint as Mint
-import  qualified Smartchain.CLAP.Script.Transfer as Transfer
-import Smartchain.Adapter.Cardano.CardanoCLI as CardanoCLI
+import  qualified Tokenomia.Token.CLAPStyle.Mint.CLI as Mint
+import  qualified Tokenomia.Transfer.CLI as Transfer
+import Tokenomia.Adapter.Cardano.CardanoCLI as CardanoCLI
 import Data.List.NonEmpty as NonEmpty ( NonEmpty, fromList )
 import Byline.Menu
     ( runBylineT,
@@ -29,7 +29,7 @@ import Byline.Menu
 import Data.Text ( Text )
 import Data.Maybe ( fromJust )
 import Byline.Internal.Stylized ()
-import Smartchain.Wallet.Script (selectWallet) 
+import Tokenomia.Wallet.CLI (selectWallet) 
 
 load SearchPath ["echo","ssh","cat","curl"]
 

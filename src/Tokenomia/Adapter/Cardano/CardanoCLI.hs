@@ -13,7 +13,7 @@
      To be less error prone we have chosen this alternative over using bash scripts for example.
      It allows you to use a part of your Off chain codebase in Haskell basically. 
 -}
-module Smartchain.Adapter.Cardano.CardanoCLI
+module Tokenomia.Adapter.Cardano.CardanoCLI
     ( -- Write 
       run_tx
     , register_minting_script_file

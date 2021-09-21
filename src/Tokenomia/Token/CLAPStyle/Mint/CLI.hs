@@ -8,27 +8,24 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 {-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 
-module Smartchain.CLAP.Script.Mint
+module Tokenomia.Token.CLAPStyle.Mint.CLI
     ( mintI ) where
-    -- , run) where
-
-import Shh
-
-import Smartchain.Adapter.Cardano.CardanoCLI
+    
 import           Prelude
+import           Shh
+
+import           Data.Aeson
+import qualified Data.Maybe as M
+import           Data.List.Split
+import qualified Data.ByteString.Lazy.UTF8 as BLU
+import qualified Data.ByteString.UTF8 as BSU 
+
 import           Ledger
 import qualified Ledger.Value as L
 
-import Data.Aeson
-import qualified Data.Maybe as M
-import Smartchain.CLAP.Contract.MonetaryPolicy
+import           Tokenomia.Token.CLAPStyle.MonetaryPolicy
+import           Tokenomia.Adapter.Cardano.CardanoCLI
 
-
-import           Data.List.Split
-
-
-import qualified Data.ByteString.Lazy.UTF8 as BLU
-import qualified Data.ByteString.UTF8 as BSU 
 
 {-# ANN module "HLINT: ignore Use camelCase" #-}
 

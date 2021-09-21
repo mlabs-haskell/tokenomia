@@ -19,7 +19,7 @@
 {-# LANGUAGE NumericUnderscores #-}
 {-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
 
-module Smartchain.CLAP.Contract.MonetaryPolicy(
+module Tokenomia.Token.CLAPStyle.MonetaryPolicy(
     MonetaryPolicySchema
     , CLAPMonetaryPolicyError(..)
     , AsCLAPMonetaryPolicyError(..)
@@ -64,15 +64,13 @@ import Ledger
       mkMintingPolicyScript,
       PubKeyHash,
       MintingPolicy,
-      AssetClass,
-      CurrencySymbol,
-      Value )                 
+      CurrencySymbol )                 
 import qualified Ledger.Constraints     as Constraints
 import qualified Ledger.Contexts        as V
 import PlutusTx ( BuiltinData, applyCode, liftCode, compile )
 
 import qualified Ledger.Typed.Scripts   as Scripts
-import           Ledger.Value           (singleton,TokenName (..),assetClass,assetClassValue, valueOf)
+import           Ledger.Value           (singleton,TokenName (..), valueOf)
 
 import           Data.Aeson             (FromJSON, ToJSON)
 import           GHC.Generics           (Generic)
@@ -83,6 +81,11 @@ import PlutusTx.Builtins.Internal ()
 
 
 
+
+-- /////////////////
+-- // On-Chain Part
+-- /////////////////
+
 data Params = Params
   { txOutRef     :: TxOutRef
   , amount    :: Integer
@@ -91,21 +94,6 @@ data Params = Params
   deriving anyclass (ToJSON, FromJSON)
 
 PlutusTx.makeLift ''Params
-
-{-# INLINABLE clapAssetClass #-}
-clapAssetClass :: CurrencySymbol  -> AssetClass
-clapAssetClass clapPolicyHash = assetClass clapPolicyHash (TokenName "CLAP")
-
-{-# INLINABLE clapTotalSupply #-}
-clapTotalSupply :: CurrencySymbol -> Value
-clapTotalSupply clapPolicyHash
-    = assetClassValue
-        (clapAssetClass clapPolicyHash )
-        1_000_000_000_000
-
--- /////////////////
--- // On-Chain Part
--- /////////////////
 
 
 mkMonetaryPolicyScript :: Params -> MintingPolicy
@@ -121,7 +109,7 @@ monetaryPolicy a b c =  burningPolicy a b c || mintingPolicy a b c
 {-# INLINABLE mintingPolicy #-}
 mintingPolicy :: Params -> BuiltinData -> V.ScriptContext -> Bool
 mintingPolicy Params{ txOutRef = (TxOutRef refHash refIdx),..} _ ctx@V.ScriptContext{V.scriptContextTxInfo=txinfo}
-    =  traceIfFalse "E1" {- Value minted different from expected (10^9 CLAPs)" -}
+    =  traceIfFalse "E1" {- Value minted different from expected" -}
         (singleton (V.ownCurrencySymbol ctx) tokenName  amount == V.txInfoMint txinfo)
     && traceIfFalse "E2" {- Pending transaction does not spend the designated transaction output (necessary for one-time minting Policy) -}
         (V.spendsOutput txinfo refHash refIdx)
@@ -158,20 +146,19 @@ burnContract
     ( AsCLAPMonetaryPolicyError e
     )
     => PubKeyHash
-    -> TxOutRef
-    -> TokenName
+    -> Params
     -> Integer
     -> Contract w s e ()
-burnContract burnerPK txOutRef tokenName amount =
+burnContract burnerPK monetaryPolicyParams@Params {..} amountToBurn =
     mapError (review _CLAPMonetaryPolicyError) $ do
-    let monetaryPolicyParams = Params {..}
-        policyHash = (scriptCurrencySymbol . mkMonetaryPolicyScript) monetaryPolicyParams
+    let policyHash = (scriptCurrencySymbol . mkMonetaryPolicyScript) monetaryPolicyParams
         monetaryPolicyScript = mkMonetaryPolicyScript monetaryPolicyParams
+        valueToBurn = singleton policyHash tokenName amountToBurn
     utxosInBurnerWallet <- Contract.utxosAt (pubKeyHashAddress burnerPK)
     submitTxConstraintsWith
             @Scripts.Any
             (Constraints.mintingPolicy monetaryPolicyScript <> Constraints.unspentOutputs utxosInBurnerWallet)
-            (Constraints.mustMintValue $ assetClassValue (clapAssetClass policyHash) amount)
+            (Constraints.mustMintValue valueToBurn)
      >>= awaitTxConfirmed . txId
 
 
@@ -183,7 +170,7 @@ mintContract
     => PubKeyHash
     -> TokenName
     -> Integer
-    -> Contract w s e (CurrencySymbol,Ledger.TxOutRef)
+    -> Contract w s e (CurrencySymbol,Params)
 mintContract pk tokenName amount =
     mapError (review _CLAPMonetaryPolicyError) $ do
     txOutRef <- getUnspentOutput    
@@ -197,6 +184,6 @@ mintContract pk tokenName amount =
             (Constraints.mintingPolicy monetaryPolicyScript <> Constraints.unspentOutputs utxosInWallet)
             (Constraints.mustSpendPubKeyOutput txOutRef     <> Constraints.mustMintValue valueToMint)
      >>= awaitTxConfirmed . txId
-     >>  pure (policyHash,txOutRef)
+     >>  pure (policyHash,monetaryPolicyParams)
 
 

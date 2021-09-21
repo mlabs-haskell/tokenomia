@@ -6,7 +6,7 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 {-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 
-module Smartchain.CLAP.Script.Transfer 
+module Tokenomia.Transfer.CLI 
     ( run) where
 
 import Shh
@@ -14,7 +14,7 @@ import Shh
       (|>),
       ExecReference(SearchPath) )
 
-import Smartchain.Adapter.Cardano.CardanoCLI
+import Tokenomia.Adapter.Cardano.CardanoCLI
     ( run_tx,
       query_utxo,
       query_tip ) 

@@ -12,7 +12,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 {-# LANGUAGE EmptyCase #-}
-module Smartchain.CLAP.Tokenomic.Simulation  where
+module Tokenomia.Tokenomic.CLAP.Simulation  where
 
 import Control.Monad (void)                   
 import           Control.Monad.Freer.Error         (throwError)
@@ -44,10 +44,10 @@ import qualified Plutus.Trace.Effects.Waiting as EffectsW
 import qualified Ledger.TimeSlot          as TimeSlot  
 import           Data.Default             (Default (def))
 import           Data.Semigroup         (Last (..))     
-import Smartchain.CLAP.Contract.MonetaryPolicy
+import Tokenomia.Token.CLAPStyle.MonetaryPolicy
     ( mintContract, CLAPMonetaryPolicyError )
 
-import Smartchain.Contract.Vesting as Vesting
+import Tokenomia.Vesting.Contract as Vesting
     ( vestingContract,
       VestingError,
       VestingParams(..),

@@ -15,7 +15,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
 {-# OPTIONS_GHC -fno-specialise #-}
-module Smartchain.Contract.Vesting (
+module Tokenomia.Vesting.Contract (
     -- $vesting
     VestingParams(..),
     VestingSchema,
