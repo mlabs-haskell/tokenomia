@@ -6,7 +6,6 @@ tags
 ## Miscelleanous
 *.o
 *.hi
-*.hie
 *.chi
 *.chs.h
 *.dyn_o
