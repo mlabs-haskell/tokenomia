@@ -71,6 +71,9 @@ verifySendings = do
   jsonFilePath <- liftIO getLine
   verifySendings' jsonFilePath
 
+-- Below, getTreasAddrTxs in verifySendings' will be called recursively if we receive a full 100 `AddressTransaction`s
+--  from Blockfrost. To initially call this function we pass an empty list (of type [AddressTransaction]) and an Int to initialize the page number
+--  and we just keep appending `AddressTransaction`s until we get no more.
 verifySendings' ::
   forall (m :: Type -> Type).
   ( MonadIO m
@@ -81,7 +84,7 @@ verifySendings' ::
   m ()
 verifySendings' jsonFilePath = do
   sendings <- jsonToSendings jsonFilePath
-  treasAddrTxs <- getTreasAddrTxs sendings
+  treasAddrTxs <- getTreasAddrTxs sendings [] 1
   let treasTxhs = (^. txHash) <$> treasAddrTxs
       flatSendingsTxValues = Map.toList . sendingsTxValues $ sendings
       txhs = verifyTxHashList flatSendingsTxValues treasTxhs
@@ -109,12 +112,15 @@ getTreasAddrTxs ::
   , MonadReader Environment m
   ) =>
   Sendings ->
+  [AddressTransaction] ->
+  Int ->
   m [AddressTransaction]
-getTreasAddrTxs sendings = do
+getTreasAddrTxs sendings addrTxs i = do
   prj <- projectFromEnv''
-  eitherErrAddrTxs <-
-    liftIO $ Client.runBlockfrost prj (Client.getAddressTransactions (sendingsRecipientAddress sendings))
-  liftEither $ first BlockFrostError eitherErrAddrTxs
+  eitherErrNewAddrTxs <-
+    liftIO $ Client.runBlockfrost prj $ Client.getAddressTransactions' (sendingsRecipientAddress sendings) (Client.Paged 100 i) Client.def Nothing Nothing
+  newAddrTxs <- liftEither $ first BlockFrostError eitherErrNewAddrTxs
+  if length newAddrTxs == 100 then getTreasAddrTxs sendings (addrTxs <> newAddrTxs) (i + 1) else return (addrTxs <> newAddrTxs)
 
 verifyTxHashList ::
   [(TxHash, Value)] ->
